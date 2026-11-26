@@ -1,4 +1,3 @@
-__pycache__/
 import os
 import subprocess
 import sys
