@@ -6,17 +6,21 @@ on:
   push:
     branches: [dev, pre-release, main]
 
+env:
+  PROD_DIR: C:\VSC\CI_CD\production
+
+defaults:
+  run:
+    shell: powershell
+
 jobs:
   # ---------- PULL REQUEST ----------
   pr-tests:
     name: PR tests
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
 
       # PR -> dev
       - name: UNIT TEST
@@ -48,7 +52,7 @@ jobs:
   pr-approved:
     name: PR approved
     needs: pr-tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment: pr-approval   # manuali: Approve / Reject
     steps:
       - run: echo "PR apstiprinats, var spiest Merge"
@@ -57,12 +61,9 @@ jobs:
   dev:
     name: dev tests
     if: github.event_name == 'push' && github.ref_name == 'dev'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - name: UNIT TEST
         run: python -m unittest -v test.UnitTest
       - name: INTEGRATION TEST
@@ -72,18 +73,15 @@ jobs:
   pre-release:
     name: pre-release tests
     if: github.event_name == 'push' && github.ref_name == 'pre-release'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - name: UNIT TEST
         run: python -m unittest -v test.UnitTest
       - name: LINT TEST
         run: |
-          pip install flake8
-          flake8 --max-line-length 120 app.py test.py
+          python -m pip install -q flake8
+          python -m flake8 --max-line-length 120 app.py test.py
       - name: INTEGRATION TEST
         run: python -m unittest -v test.IntegrationTest
       - name: REGRESSION TEST
@@ -96,7 +94,7 @@ jobs:
   manual-testing:
     name: MANUAL TESTING
     needs: pre-release
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment: manual-testing   # manuali: Approve / Reject
     steps:
       - run: echo "Manuala testesana apstiprinata"
@@ -105,21 +103,34 @@ jobs:
   production:
     name: main deploy
     if: github.event_name == 'push' && github.ref_name == 'main'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - name: BUILD
         run: python -m py_compile app.py
-      - name: SMOKE TEST
-        run: python -m unittest -v test.SmokeTest
+
       - name: DEPLOY TO PROD
-        uses: actions/upload-artifact@v4
-        with:
-          name: production
-          path: app.py
+        id: deploy
+        run: |
+          New-Item -ItemType Directory -Force $env:PROD_DIR | Out-Null
+          if (Test-Path "$env:PROD_DIR\app.py") {
+            Copy-Item "$env:PROD_DIR\app.py" "$env:PROD_DIR\app.py.bak" -Force
+          }
+          Copy-Item app.py "$env:PROD_DIR\app.py" -Force
+          echo "Izvietots uz $env:PROD_DIR"
+
+      - name: SMOKE TEST after deploy
+        run: |
+          $env:APP_DIR = $env:PROD_DIR
+          python -m unittest -v test.SmokeTest
+
       - name: ROLLBACK
-        if: failure()
-        run: echo "Kluda, jauna versija netika izvietota. Produkcija paliek ieprieksejo versiju."
+        if: failure() && steps.deploy.outcome == 'success'
+        run: |
+          if (Test-Path "$env:PROD_DIR\app.py.bak") {
+            Copy-Item "$env:PROD_DIR\app.py.bak" "$env:PROD_DIR\app.py" -Force
+            echo "Rollback: atjaunota ieprieksejo versija"
+          } else {
+            Remove-Item "$env:PROD_DIR\app.py" -Force
+            echo "Rollback: pirmais deploy neizdevas, app.py nonemts"
+          }
