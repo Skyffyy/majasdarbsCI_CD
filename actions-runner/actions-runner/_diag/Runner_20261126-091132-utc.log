@@ -130,3 +130,8 @@
 [2026-11-26 09:11:33Z INFO Terminal] WRITE LINE: 
 [2026-11-26 09:11:33Z INFO RSAEncryptedFileKeyManager] Loading RSA key parameters from file C:\VSC\CI_CD\majasdarbsCI_CD\actions-runner\actions-runner\.credentials_rsaparams
 [2026-11-26 09:11:33Z INFO RSAEncryptedFileKeyManager] Loading RSA key parameters from file C:\VSC\CI_CD\majasdarbsCI_CD\actions-runner\actions-runner\.credentials_rsaparams
+[2026-11-26 09:11:34Z INFO GitHubActionsService] AAD Correlation ID for this token request: Unknown
+[2026-11-26 09:11:35Z INFO BrokerMessageListener] Session created.
+[2026-11-26 09:11:35Z INFO Terminal] WRITE LINE: Current runner version: '2.338.2'
+[2026-11-26 09:11:35Z INFO Terminal] WRITE LINE: 2026-11-26 09:11:35Z: Listening for Jobs
+[2026-11-26 09:11:35Z INFO JobDispatcher] Set runner/worker IPC timeout to 30 seconds.
