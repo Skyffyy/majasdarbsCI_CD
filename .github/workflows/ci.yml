@@ -1,0 +1,125 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [dev, pre-release, main]
+  push:
+    branches: [dev, pre-release, main]
+
+jobs:
+  # ---------- PULL REQUEST ----------
+  pr-tests:
+    name: PR tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # PR -> dev
+      - name: UNIT TEST
+        if: github.base_ref == 'dev'
+        run: python -m unittest -v test.UnitTest
+
+      # PR -> pre-release
+      - name: UNIT TEST
+        if: github.base_ref == 'pre-release'
+        run: python -m unittest -v test.UnitTest
+      - name: INTEGRATION TEST
+        if: github.base_ref == 'pre-release'
+        run: python -m unittest -v test.IntegrationTest
+      - name: REGRESSION TEST
+        if: github.base_ref == 'pre-release'
+        run: python -m unittest -v test.RegressionTest
+
+      # PR -> main
+      - name: BUILD
+        if: github.base_ref == 'main'
+        run: python -m py_compile app.py
+      - name: SMOKE TEST
+        if: github.base_ref == 'main'
+        run: python -m unittest -v test.SmokeTest
+      - name: REGRESSION TEST
+        if: github.base_ref == 'main'
+        run: python -m unittest -v test.RegressionTest
+
+  pr-approved:
+    name: PR approved
+    needs: pr-tests
+    runs-on: ubuntu-latest
+    environment: pr-approval   # manuali: Approve / Reject
+    steps:
+      - run: echo "PR apstiprinats, var spiest Merge"
+
+  # ---------- PUSH -> dev ----------
+  dev:
+    name: dev tests
+    if: github.event_name == 'push' && github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: UNIT TEST
+        run: python -m unittest -v test.UnitTest
+      - name: INTEGRATION TEST
+        run: python -m unittest -v test.IntegrationTest
+
+  # ---------- PUSH -> pre-release ----------
+  pre-release:
+    name: pre-release tests
+    if: github.event_name == 'push' && github.ref_name == 'pre-release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: UNIT TEST
+        run: python -m unittest -v test.UnitTest
+      - name: LINT TEST
+        run: |
+          pip install flake8
+          flake8 --max-line-length 120 app.py test.py
+      - name: INTEGRATION TEST
+        run: python -m unittest -v test.IntegrationTest
+      - name: REGRESSION TEST
+        run: python -m unittest -v test.RegressionTest
+      - name: REGISTRATION TEST
+        run: python -m unittest -v test.RegistrationTest
+      - name: STRESS TEST
+        run: python -m unittest -v test.StressTest
+
+  manual-testing:
+    name: MANUAL TESTING
+    needs: pre-release
+    runs-on: ubuntu-latest
+    environment: manual-testing   # manuali: Approve / Reject
+    steps:
+      - run: echo "Manuala testesana apstiprinata"
+
+  # ---------- PUSH -> main ----------
+  production:
+    name: main deploy
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: BUILD
+        run: python -m py_compile app.py
+      - name: SMOKE TEST
+        run: python -m unittest -v test.SmokeTest
+      - name: DEPLOY TO PROD
+        uses: actions/upload-artifact@v4
+        with:
+          name: production
+          path: app.py
+      - name: ROLLBACK
+        if: failure()
+        run: echo "Kluda, jauna versija netika izvietota. Produkcija paliek ieprieksejo versiju."
